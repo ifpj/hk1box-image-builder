@@ -64,5 +64,7 @@ rm -f "$TARFILE"
 sha256sum "$ZSTFILE" > "${ZSTFILE}.sha256"
 
 info_msg "Done: $(ls -lh "$ZSTFILE")"
-echo "tarball=${ZSTFILE}" >> "${GITHUB_OUTPUT:-/dev/null}"
-echo "manifest=${MANIFEST}" >> "${GITHUB_OUTPUT:-/dev/null}"
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "tarball=${ZSTFILE}" >> "$GITHUB_OUTPUT"
+  echo "manifest=${MANIFEST}" >> "$GITHUB_OUTPUT"
+fi

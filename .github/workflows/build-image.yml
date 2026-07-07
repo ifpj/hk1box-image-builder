@@ -49,6 +49,7 @@ jobs:
       - name: Build default rootfs tarball
         id: rootfs
         run: |
+          set -x
           ./build-rootfs.sh \
             --distro "${{ matrix.distro }}" \
             --suite "${{ matrix.suite }}" \
