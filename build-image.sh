@@ -129,21 +129,32 @@ sudo mount "${LOOP_DEV}p2" "$tag_rootfs"
 info_msg "Copying rootfs content into image..."
 sudo cp -a "$EXTRACT_ROOTFS/." "$tag_rootfs/"
 
-# ==== 步骤9: 解压内核 boot 到 /boot ====
-info_msg "Extracting kernel boot files..."
-sudo tar -mxzf "$KERNEL_BOOT" -C "$TAG_BOOTFS"
-(cd "$TAG_BOOTFS" && sudo cp -f "vmlinuz-${KERNEL_NAME}" zImage && sudo cp -f "uInitrd-${KERNEL_NAME}" uInitrd)
+# ==== 步骤9: 提取内核 boot 必要文件到 /boot ====
+info_msg "Extracting required kernel boot files..."
+BOOT_EXTRACT="$TMPDIR/boot_extract"
+mkdir -p "$BOOT_EXTRACT"
+sudo tar -mxzf "$KERNEL_BOOT" -C "$BOOT_EXTRACT"
+sudo cp -f "$BOOT_EXTRACT/vmlinuz-${KERNEL_NAME}" "$TAG_BOOTFS/zImage"
+sudo cp -f "$BOOT_EXTRACT/uInitrd-${KERNEL_NAME}" "$TAG_BOOTFS/uInitrd"
 
-# ==== 步骤10: 解压 dtb ====
-info_msg "Extracting dtb files..."
+# ==== 步骤10: 提取目标 dtb 到 /boot/dtb/amlogic ====
+info_msg "Extracting target dtb..."
+DTB_EXTRACT="$TMPDIR/dtb_extract"
+mkdir -p "$DTB_EXTRACT"
+sudo tar -mxzf "$KERNEL_DTB" -C "$DTB_EXTRACT"
 sudo mkdir -p "$TAG_BOOTFS/dtb/amlogic"
-sudo tar -mxzf "$KERNEL_DTB" -C "$TAG_BOOTFS/dtb/amlogic"
-# Amlogic bootfs is FAT32, symlinks not supported; skip dtb- symlink
+sudo cp -f "$DTB_EXTRACT/${FDTFILE}" "$TAG_BOOTFS/dtb/amlogic/${FDTFILE}"
+# 如果存在 overlays，按需复制（可选但有助于扩展）
+[[ -d "$DTB_EXTRACT/overlays" ]] && sudo cp -a "$DTB_EXTRACT/overlays" "$TAG_BOOTFS/dtb/amlogic/"
 
 # ==== 步骤11: 解压 modules ====
 info_msg "Extracting kernel modules..."
 sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
-sudo tar -mxzf "$KERNEL_MODULES" -C "${tag_rootfs}/usr/lib/modules"
+sudo tar -mxzf "$KERNEL_MODULES" -C "${tag_rootfs}/usr/lib/modules" || {
+  echo "[ERROR] Failed to extract modules: $KERNEL_MODULES"
+  ls -lh "$KERNEL_MODULES"
+  exit 1
+}
 
 # ==== 步骤12: 复制 u-boot.ext ====
 sudo cp -f "$UBOOT_EXT" "${TAG_BOOTFS}/u-boot.ext"
