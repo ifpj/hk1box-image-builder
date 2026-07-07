@@ -53,7 +53,9 @@ sudo mmdebstrap \
   "$MIRROR"
 
 info_msg "Extracting package manifest..."
-tar xf "$TARFILE" ./var/lib/dpkg/status -O | \
+STATUS_PATH="$(tar tf "$TARFILE" | grep -E '^(\./)?var/lib/dpkg/status$' | head -1)"
+[[ -n "$STATUS_PATH" ]] || error_msg "dpkg status not found in rootfs tarball"
+tar xf "$TARFILE" "$STATUS_PATH" -O | \
   awk '/^Package:/{pkg=$2} /^Version:/{ver=$2; print pkg "\t" ver}' | \
   sort > "$MANIFEST"
 info_msg "Installed packages: $(wc -l < "$MANIFEST")"
