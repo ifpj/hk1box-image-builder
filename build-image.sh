@@ -64,6 +64,10 @@ BOOTFS_TYPE="fat32"
 ROOTFS_TYPE="ext4"
 
 # ---- 创建工作目录 ----
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLATFORM_BOOTFS="${SCRIPT_DIR}/bootfs"
+[[ -d "$PLATFORM_BOOTFS" ]] || error_msg "platform bootfs not found: $PLATFORM_BOOTFS"
+
 TMPDIR="$(mktemp -d)"
 trap "rm -rf '$TMPDIR'" EXIT
 
@@ -132,9 +136,12 @@ info_msg "Mounting partitions..."
 sudo mount "${LOOP_DEV}p1" "$TAG_BOOTFS"
 sudo mount "${LOOP_DEV}p2" "$tag_rootfs"
 
-# ==== 步骤8.5: 复制 rootfs 内容到镜像 ====
+# ==== 步骤8.5: 复制 rootfs 和 Amlogic boot scripts ====
 info_msg "Copying rootfs content into image..."
 sudo cp -a "$EXTRACT_ROOTFS/." "$tag_rootfs/"
+
+info_msg "Copying Amlogic boot scripts..."
+sudo cp -a "$PLATFORM_BOOTFS/." "$TAG_BOOTFS/"
 
 # ==== 步骤9: 提取内核 boot 必要文件到 /boot ====
 info_msg "Extracting required kernel boot files..."
@@ -155,13 +162,17 @@ info_msg "TEXT_OFFSET marker: ${TEXTOFF:-unknown}, need u-boot.ext: ${NEED_UBOOT
 sudo cp -f "$SRC_VMLINUZ" "$TAG_BOOTFS/zImage"
 sudo cp -f "$SRC_UINITRD" "$TAG_BOOTFS/uInitrd"
 
-# ==== 步骤10: 提取目标 dtb 到 /boot/dtb/amlogic ====
+# ==== 步骤10: 提取目标 dtb 到 /boot 根目录 ====
 info_msg "Extracting target dtb..."
 DTB_EXTRACT="$TMPDIR/dtb_extract"
 mkdir -p "$DTB_EXTRACT"
 sudo tar -mxzf "$KERNEL_DTB" -C "$DTB_EXTRACT"
-sudo mkdir -p "$TAG_BOOTFS/dtb/amlogic"
-sudo cp -f "$DTB_EXTRACT/${FDTFILE}" "$TAG_BOOTFS/dtb/amlogic/${FDTFILE}"
+NEEDED_DTB="$(find "$DTB_EXTRACT" -name "$FDTFILE" | head -1)"
+[[ -n "$NEEDED_DTB" && -f "$NEEDED_DTB" ]] || error_msg "DTB not found after extraction: $FDTFILE"
+sudo cp -f "$NEEDED_DTB" "$TAG_BOOTFS/${FDTFILE}"
+OC_DTB="$(find "$DTB_EXTRACT" -name "${FDTFILE%.dtb}-oc.dtb" | head -1)"
+[[ -n "$OC_DTB" && -f "$OC_DTB" ]] && sudo cp -f "$OC_DTB" "$TAG_BOOTFS/${FDTFILE%.dtb}-oc.dtb"
+
 # ==== 步骤11: 解压完整 modules ====
 info_msg "Extracting full kernel modules..."
 sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
@@ -190,7 +201,7 @@ fi
 cat > "$TMPDIR/uEnv.txt" <<EOF
 LINUX=/zImage
 INITRD=/uInitrd
-FDT=/dtb/amlogic/${FDTFILE}
+FDT=/${FDTFILE}
 APPEND=root=UUID=${ROOTFS_UUID} rootflags=data=writeback rw rootwait rootfstype=ext4 console=ttyAML0,115200n8 console=tty0 no_console_suspend consoleblank=0 fsck.fix=yes fsck.repair=yes net.ifnames=0 suspend_env_cfg=off cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory swapaccount=1
 EOF
 sudo cp -f "$TMPDIR/uEnv.txt" "${TAG_BOOTFS}/uEnv.txt"
