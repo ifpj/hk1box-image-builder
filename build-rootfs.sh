@@ -66,7 +66,7 @@ fi
 
 info_msg "Compressing rootfs with zstd -1..."
 zstd -T0 -1 -f "$TARFILE" -o "$ZSTFILE"
-rm -f "$TARFILE"
+sudo rm -f "$TARFILE"
 sha256sum "$ZSTFILE" > "${ZSTFILE}.sha256"
 
 info_msg "Done: $(ls -lh "$ZSTFILE")"
