@@ -191,6 +191,7 @@ FSTAB"
 info_msg "Fixing symlinks..."
 sudo bash -c "
   cd '${tag_rootfs}'
+  mkdir -p run var
   rm -f bin lib sbin
   ln -sf usr/bin bin
   ln -sf usr/lib lib
