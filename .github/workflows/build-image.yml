@@ -9,12 +9,12 @@ on:
   workflow_dispatch:
     inputs:
       tarball_tag:
-        description: 'mmdebstrap tarball release tag (default: latest)'
+        description: 'rootfs release tag in this repo (default: latest rootfs-*)'
         required: false
         default: 'latest'
 
 env:
-  TARBALL_REPO: ifpj/mmdebstrap-rootfs-builder
+  TARBALL_REPO: ${{ github.repository }}
   KERNEL_REPO: ophub/kernel
   KERNEL_TAGS: kernel_stable
   UBOOT_REPO: ophub/u-boot
@@ -22,7 +22,7 @@ env:
   FDTFILE: meson-sm1-hk1box-vontar-x3.dtb
   UBOOT_OVERLOAD: u-boot-x96maxplus.bin
   MAINLINE_UBOOT: hk1box-u-boot.bin.sd.bin
-  ROOTFS_VARIANT: default
+  ROOTFS_VARIANT: minbase-systemd
 
 jobs:
   build:
@@ -82,8 +82,10 @@ jobs:
         run: |
           TARBALL_TAG="${{ github.event.inputs.tarball_tag || 'latest' }}"
           if [[ "$TARBALL_TAG" == 'latest' ]]; then
-            TARBALL_TAG="$(curl -fsSL "https://api.github.com/repos/${TARBALL_REPO}/releases/latest" | jq -r '.tag_name')"
+            # Pick the newest rootfs-* release from this repository, not the newest image release.
+            TARBALL_TAG="$(curl -fsSL "https://api.github.com/repos/${TARBALL_REPO}/releases?per_page=100" | jq -r '[.[] | select(.tag_name | startswith("rootfs-"))][0].tag_name')"
           fi
+          [[ -n "$TARBALL_TAG" && "$TARBALL_TAG" != "null" ]] || { echo "error: no rootfs-* release found"; exit 1; }
           echo "Using tarball release: ${TARBALL_TAG}"
           echo "tag=${TARBALL_TAG}" >> "$GITHUB_OUTPUT"
 
