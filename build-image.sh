@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -euxo pipefail
 
 # ========================================================================
 # HK1 Box (Amlogic S905X3) 镜像构建脚本
