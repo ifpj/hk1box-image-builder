@@ -136,7 +136,7 @@ sudo tar -mxzf "$KERNEL_BOOT" -C "$TAG_BOOTFS"
 info_msg "Extracting dtb files..."
 sudo mkdir -p "$TAG_BOOTFS/dtb/amlogic"
 sudo tar -mxzf "$KERNEL_DTB" -C "$TAG_BOOTFS/dtb/amlogic"
-sudo ln -sf dtb "${TAG_BOOTFS}/dtb-${KERNEL_NAME}"
+# Amlogic bootfs is FAT32, symlinks not supported; skip dtb- symlink
 
 # ==== 步骤11: 解压 modules ====
 info_msg "Extracting kernel modules..."
