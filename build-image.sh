@@ -192,11 +192,22 @@ info_msg "Fixing symlinks..."
 sudo bash -c "
   cd '${tag_rootfs}'
   mkdir -p run var
-  rm -f bin lib sbin
-  ln -sf usr/bin bin
-  ln -sf usr/lib lib
-  ln -sf usr/sbin sbin
-  rm -f var/lock var/run
+  for d in bin lib sbin; do
+    if [[ -d \$d && ! -L \$d ]]; then
+      cp -aT \$d usr/\$d 2>/dev/null || true
+      rm -rf \$d
+    elif [[ -L \$d ]]; then
+      rm -f \$d
+    fi
+    ln -sf usr/\$d \$d
+  done
+  for d in var/lock var/run; do
+    if [[ -d \$d && ! -L \$d ]]; then
+      rm -rf \$d
+    elif [[ -L \$d ]]; then
+      rm -f \$d
+    fi
+  done
   ln -sf /run/lock var/lock
   ln -sf /run var/run
 "
