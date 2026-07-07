@@ -247,4 +247,7 @@ fi
 sha256sum "$OUTPUT_GZ" > "${OUTPUT_GZ}.sha256"
 
 info_msg "Done: $(ls -lh "$OUTPUT_GZ")"
-echo "image=${OUTPUT_GZ}" >> "$GITHUB_OUTPUT"
+# When running under sudo, GITHUB_OUTPUT may be unavailable; the workflow does not depend on this output.
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "image=${OUTPUT_GZ}" >> "$GITHUB_OUTPUT"
+fi
