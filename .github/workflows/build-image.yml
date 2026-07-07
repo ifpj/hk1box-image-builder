@@ -46,7 +46,7 @@ jobs:
             parted dosfstools e2fsprogs uuid-runtime curl jq \
             pigz git kmod
 
-      - name: Build default rootfs tarball
+      - name: Build minbase rootfs tarball
         id: rootfs
         run: |
           set -x
@@ -64,8 +64,7 @@ jobs:
           echo "Querying kernel_stable release from ${KERNEL_REPO}..."
           KERNEL_API="https://api.github.com/repos/${KERNEL_REPO}/releases/tags/${KERNEL_TAGS}"
           curl -fsSL "$KERNEL_API" -o /tmp/kernel_release.json
-
-          # kernel_stable release 的 asset 是 {version}.tar.gz（大包），里面包含 boot/dtb/modules/header 子包
+          # kernel_stable release asset is {version}.tar.gz, containing boot/dtb/modules/header packages.
           LATEST_VERSION="$(jq -r '.assets[].name' /tmp/kernel_release.json | grep -v '^deb-' | grep '\.tar\.gz$' | sed 's/\.tar\.gz$//' | sort -V | tail -1)"
           [[ -z "$LATEST_VERSION" ]] && echo "error: No kernel tar.gz found in ${KERNEL_TAGS}" && exit 1
           echo "Found kernel version: ${LATEST_VERSION}"
@@ -105,7 +104,7 @@ jobs:
           KERNEL_VER="${{ steps.kernel.outputs.version }}"
           KERNEL_DIR="/tmp/kernel_extracted/${KERNEL_VER}"
           sudo ./build-image.sh \
-            --tarball "/tmp/${{ matrix.distro }}-${{ matrix.suite }}-default-arm64.tar.zst" \
+            --tarball "/tmp/${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64.tar.zst" \
             --kernel-boot "${KERNEL_DIR}/boot-${KERNEL_VER}-ophub.tar.gz" \
             --kernel-dtb "${KERNEL_DIR}/dtb-amlogic-${KERNEL_VER}-ophub.tar.gz" \
             --kernel-modules "${KERNEL_DIR}/modules-${KERNEL_VER}-ophub.tar.gz" \
@@ -148,7 +147,7 @@ jobs:
           tag_name: ${{ github.ref_name || format('build-{0}', github.run_id) }}
           generate_release_notes: true
           body: |
-            Bootable HK1 Box (Amlogic S905X3) images built from default mmdebstrap rootfs + ophub kernel.
+            Bootable HK1 Box (Amlogic S905X3) images built from minbase mmdebstrap rootfs + ophub kernel.
 
             | Distro | Suite | Kernel |
             |--------|-------|--------|

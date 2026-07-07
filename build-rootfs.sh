@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # ========================================================================
-# Build default Debian/Ubuntu arm64 rootfs tarball with mmdebstrap
-# Output: <distro>-<suite>-default-arm64.tar.zst + manifest + sha256
+# Build minbase Debian/Ubuntu arm64 rootfs tarball with mmdebstrap
+# Output: <distro>-<suite>-minbase-arm64.tar.zst + manifest + sha256
 # ========================================================================
 
 error_msg() { echo "[ERROR] $1" >&2; exit 1; }
@@ -15,6 +15,7 @@ MIRROR=""
 COMPONENTS=""
 ARCH="arm64"
 OUTPUT_DIR="/tmp"
+INCLUDE="systemd-sysv,openssh-server,ca-certificates,iproute2,netbase,passwd"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,6 +24,7 @@ while [[ $# -gt 0 ]]; do
     --mirror)     MIRROR="$2"; shift 2 ;;
     --components) COMPONENTS="$2"; shift 2 ;;
     --arch)       ARCH="$2"; shift 2 ;;
+    --include)    INCLUDE="$2"; shift 2 ;;
     --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
     *) error_msg "Unknown parameter: $1" ;;
   esac
@@ -34,19 +36,22 @@ done
 [[ -n "$COMPONENTS" ]] || error_msg "--components is required"
 mkdir -p "$OUTPUT_DIR"
 
-BASENAME="${DISTRO}-${SUITE}-default-${ARCH}"
+BASENAME="${DISTRO}-${SUITE}-minbase-${ARCH}"
 TARFILE="${OUTPUT_DIR}/${BASENAME}.tar"
 ZSTFILE="${TARFILE}.zst"
 MANIFEST="${OUTPUT_DIR}/${BASENAME}-manifest.txt"
 
-info_msg "Building default rootfs: ${BASENAME}"
+info_msg "Building minbase rootfs: ${BASENAME}"
 info_msg "Mirror: ${MIRROR}"
 info_msg "Components: ${COMPONENTS}"
+info_msg "Include: ${INCLUDE}"
 
-# Intentionally do not pass --variant and do not pass --include.
-# This uses mmdebstrap's default package set for the suite.
+# Keep the base filesystem small, then include the packages required by
+# build-image.sh for systemd-networkd, ssh, and root password setup.
 sudo mmdebstrap \
   --architecture="$ARCH" \
+  --variant=minbase \
+  --include="$INCLUDE" \
   --components="$COMPONENTS" \
   "$SUITE" \
   "$TARFILE" \
