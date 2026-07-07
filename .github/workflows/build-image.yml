@@ -103,8 +103,8 @@ jobs:
           echo "Cloning u-boot repo..."
           git clone --depth 1 "https://github.com/${UBOOT_REPO}.git" /tmp/u-boot-repo
 
-          UBOOT_MBR_SRC="/tmp/u-boot-repo/amlogic/bootloader/${MAINLINE_UBOOT}"
-          UBOOT_EXT_SRC="/tmp/u-boot-repo/amlogic/bootloader/${UBOOT_OVERLOAD}"
+          UBOOT_MBR_SRC="/tmp/u-boot-repo/u-boot/amlogic/bootloader/${MAINLINE_UBOOT}"
+          UBOOT_EXT_SRC="/tmp/u-boot-repo/u-boot/amlogic/overload/${UBOOT_OVERLOAD}"
 
           [[ -f "$UBOOT_MBR_SRC" ]] || { echo "error: ${UBOOT_MBR_SRC} not found"; exit 1; }
           [[ -f "$UBOOT_EXT_SRC" ]] || { echo "error: ${UBOOT_EXT_SRC} not found"; exit 1; }
