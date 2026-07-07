@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euxo pipefail
+set -euo pipefail
 
 # ========================================================================
 # HK1 Box (Amlogic S905X3) 镜像构建脚本
@@ -103,7 +103,7 @@ parted -s "$BUILD_IMAGE" mkpart primary ext4 "$((SKIP_MB + BOOT_MB))MiB" 100% 2>
 # ==== 步骤4: losetup ====
 LOOP_DEV="$(sudo losetup -P -f --show "$BUILD_IMAGE")"
 [[ -n "$LOOP_DEV" ]] || error_msg "losetup failed"
-trap "sudo losetup -d '$LOOP_DEV' 2>/dev/null; rm -rf '$TMPDIR'" EXIT
+trap "sudo umount '$TAG_BOOTFS' '$tag_rootfs' 2>/dev/null || true; sudo losetup -d '$LOOP_DEV' 2>/dev/null || true; rm -rf '$TMPDIR'" EXIT
 
 # ==== 步骤5: 生成 UUID ====
 BOOT_UUID="$(cat /proc/sys/kernel/random/random_uuid 2>/dev/null || uuidgen)"

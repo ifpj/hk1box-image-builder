@@ -116,17 +116,19 @@ jobs:
       - name: Build HK1 Box image
         id: build
         run: |
+          KERNEL_VER="${{ steps.kernel.outputs.version }}"
+          KERNEL_DIR="/tmp/kernel_extracted/${KERNEL_VER}"
           sudo ./build-image.sh \
             --tarball "/tmp/${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64.tar.zst" \
-            --kernel-boot "/tmp/kernel_extracted/boot-${{ steps.kernel.outputs.version }}-ophub.tar.gz" \
-            --kernel-dtb "/tmp/kernel_extracted/dtb-amlogic-${{ steps.kernel.outputs.version }}-ophub.tar.gz" \
-            --kernel-modules "/tmp/kernel_extracted/modules-${{ steps.kernel.outputs.version }}-ophub.tar.gz" \
-            --kernel-header "/tmp/kernel_extracted/header-${{ steps.kernel.outputs.version }}-ophub.tar.gz" \
+            --kernel-boot "${KERNEL_DIR}/boot-${KERNEL_VER}-ophub.tar.gz" \
+            --kernel-dtb "${KERNEL_DIR}/dtb-amlogic-${KERNEL_VER}-ophub.tar.gz" \
+            --kernel-modules "${KERNEL_DIR}/modules-${KERNEL_VER}-ophub.tar.gz" \
+            --kernel-header "${KERNEL_DIR}/header-${KERNEL_VER}-ophub.tar.gz" \
             --uboot-mbr /tmp/uboot-mbr.bin \
             --uboot-ext /tmp/uboot-ext.bin \
             --distro "${{ matrix.distro }}" \
             --suite "${{ matrix.suite }}" \
-            --output "${{ matrix.distro }}-${{ matrix.suite }}_${{ steps.kernel.outputs.version }}"
+            --output "${{ matrix.distro }}-${{ matrix.suite }}_${KERNEL_VER}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
