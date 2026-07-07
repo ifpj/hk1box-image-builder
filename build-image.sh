@@ -191,7 +191,7 @@ sudo test -f "$DST_MOD_DIR/modules.dep" || error_msg "modules.dep missing after 
 
 # ==== 步骤12: 复制 u-boot.ext ====
 sudo cp -f "$UBOOT_EXT" "${TAG_BOOTFS}/u-boot.ext"
-sudo chmod +x "${TAG_BOOTFS}/u-boot.ext"
+# bootfs 是 FAT32，不支持 Unix 权限位，无需 chmod
 
 # ==== 步骤13: 创建 uEnv.txt ====
 cat > "$TMPDIR/uEnv.txt" <<EOF
