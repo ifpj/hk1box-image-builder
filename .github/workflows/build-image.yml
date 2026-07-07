@@ -123,7 +123,6 @@ jobs:
             --kernel-boot "${KERNEL_DIR}/boot-${KERNEL_VER}-ophub.tar.gz" \
             --kernel-dtb "${KERNEL_DIR}/dtb-amlogic-${KERNEL_VER}-ophub.tar.gz" \
             --kernel-modules "${KERNEL_DIR}/modules-${KERNEL_VER}-ophub.tar.gz" \
-            --kernel-header "${KERNEL_DIR}/header-${KERNEL_VER}-ophub.tar.gz" \
             --uboot-mbr /tmp/uboot-mbr.bin \
             --uboot-ext /tmp/uboot-ext.bin \
             --distro "${{ matrix.distro }}" \

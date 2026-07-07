@@ -15,7 +15,6 @@ TARBALL=""
 KERNEL_BOOT=""
 KERNEL_DTB=""
 KERNEL_MODULES=""
-KERNEL_HEADER=""
 UBOOT_MBR=""       # hk1box-u-boot.bin.sd.bin
 UBOOT_EXT=""       # u-boot-x96maxplus.bin → /boot/u-boot.ext
 DISTRO=""
@@ -28,7 +27,6 @@ while [[ $# -gt 0 ]]; do
     --kernel-boot)   KERNEL_BOOT="$2"; shift 2 ;;
     --kernel-dtb)    KERNEL_DTB="$2"; shift 2 ;;
     --kernel-modules) KERNEL_MODULES="$2"; shift 2 ;;
-    --kernel-header) KERNEL_HEADER="$2"; shift 2 ;;
     --uboot-mbr)     UBOOT_MBR="$2"; shift 2 ;;
     --uboot-ext)     UBOOT_EXT="$2"; shift 2 ;;
     --distro)        DISTRO="$2"; shift 2 ;;
@@ -42,7 +40,6 @@ done
 [[ -z "$KERNEL_BOOT" ]] && error_msg "--kernel-boot is required"
 [[ -z "$KERNEL_DTB" ]]  && error_msg "--kernel-dtb is required"
 [[ -z "$KERNEL_MODULES" ]] && error_msg "--kernel-modules is required"
-[[ -z "$KERNEL_HEADER" ]]  && error_msg "--kernel-header is required"
 [[ -z "$UBOOT_MBR" ]]   && error_msg "--uboot-mbr is required"
 [[ -z "$UBOOT_EXT" ]]   && error_msg "--uboot-ext is required"
 [[ -z "$DISTRO" ]]      && error_msg "--distro is required"
@@ -147,12 +144,6 @@ sudo tar -mxzf "$KERNEL_DTB" -C "$TAG_BOOTFS/dtb/amlogic"
 info_msg "Extracting kernel modules..."
 sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
 sudo tar -mxzf "$KERNEL_MODULES" -C "${tag_rootfs}/usr/lib/modules"
-HEADER_PATH="linux-headers-${KERNEL_NAME}"
-sudo mkdir -p "${tag_rootfs}/usr/src/${HEADER_PATH}"
-sudo tar -mxzf "$KERNEL_HEADER" -C "${tag_rootfs}/usr/src/${HEADER_PATH}"
-
-# 建立 build 符号链接
-sudo bash -c "cd '${tag_rootfs}/usr/lib/modules/${KERNEL_NAME}/' && rm -f build source && ln -sf /usr/src/${HEADER_PATH} build"
 
 # ==== 步骤12: 复制 u-boot.ext ====
 sudo cp -f "$UBOOT_EXT" "${TAG_BOOTFS}/u-boot.ext"
@@ -187,32 +178,7 @@ UUID=${BOOT_UUID}    /boot  vfat  defaults                                      
 tmpfs                /tmp   tmpfs defaults,nosuid                                        0 0
 FSTAB"
 
-# ==== 步骤16: 修复符号链接 ====
-info_msg "Fixing symlinks..."
-sudo bash -c "
-  cd '${tag_rootfs}'
-  mkdir -p run var
-  for d in bin lib sbin; do
-    if [[ -d \$d && ! -L \$d ]]; then
-      cp -aT \$d usr/\$d 2>/dev/null || true
-      rm -rf \$d
-    elif [[ -L \$d ]]; then
-      rm -f \$d
-    fi
-    ln -sf usr/\$d \$d
-  done
-  for d in var/lock var/run; do
-    if [[ -d \$d && ! -L \$d ]]; then
-      rm -rf \$d
-    elif [[ -L \$d ]]; then
-      rm -f \$d
-    fi
-  done
-  ln -sf /run/lock var/lock
-  ln -sf /run var/run
-"
-
-# ==== 步骤17: 修复权限 ====
+# ==== 步骤16: 修复权限 ====
 sudo bash -c "
   cd '${tag_rootfs}'
   [[ -d 'var/tmp' ]] && chmod 777 var/tmp
