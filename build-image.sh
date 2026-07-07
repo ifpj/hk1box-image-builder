@@ -140,6 +140,7 @@ sudo tar -mxzf "$KERNEL_DTB" -C "$TAG_BOOTFS/dtb/amlogic"
 
 # ==== 步骤11: 解压 modules ====
 info_msg "Extracting kernel modules..."
+sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
 sudo tar -mxzf "$KERNEL_MODULES" -C "${tag_rootfs}/usr/lib/modules"
 HEADER_PATH="linux-headers-${KERNEL_NAME}"
 sudo mkdir -p "${tag_rootfs}/usr/src/${HEADER_PATH}"
