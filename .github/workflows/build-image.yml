@@ -152,8 +152,8 @@ jobs:
 
             | Distro | Suite | Kernel |
             |--------|-------|--------|
-            | Debian | trixie | Latest kernel_stable |
-            | Ubuntu | resolute | Latest kernel_stable |
+            | Debian | trixie | kernel_stable |
+            | Ubuntu | resolute | kernel_stable |
 
             ### Flashing
             Use `balenaEtcher` / `dd` / `Amlogic USB Burning Tool` to flash `.img.gz` to SD card or USB disk.
