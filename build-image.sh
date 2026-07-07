@@ -80,12 +80,19 @@ sudo tar xf "$TMPDIR/tarball.tar" -C "$EXTRACT_ROOTFS"
 
 ROOTFS_BYTES="$(sudo du -sb "$EXTRACT_ROOTFS" | cut -f1)"
 ROOTFS_MB="$(( ROOTFS_BYTES / 1024 / 1024 ))"
-# rootfs 分区 = tarball × 2 + 256MB buffer，但至少 1024MB
-ROOTFS_PART_MB="$(( ROOTFS_MB * 2 + 256 ))"
+
+# 估算完整 modules 解压后的大小。完整 modules 要复制到 rootfs，必须计入分区容量。
+info_msg "Estimating full kernel modules size..."
+MODULES_BYTES="$(tar -tvzf "$KERNEL_MODULES" | awk '{sum += $3} END {print sum+0}')"
+MODULES_MB="$(( (MODULES_BYTES + 1024*1024 - 1) / 1024 / 1024 ))"
+
+# rootfs 分区 = rootfs内容 + 完整modules + 256MB buffer，但至少 1024MB
+ROOTFS_PART_MB="$(( ROOTFS_MB + MODULES_MB + 256 ))"
 [[ "$ROOTFS_PART_MB" -lt 1024 ]] && ROOTFS_PART_MB="1024"
 
 TOTAL_MB="$(( SKIP_MB + BOOT_MB + ROOTFS_PART_MB ))"
 info_msg "Rootfs content: ${ROOTFS_MB}MB"
+info_msg "Kernel modules estimated: ${MODULES_MB}MB"
 info_msg "Image size: ${TOTAL_MB}MB (boot=${BOOT_MB}, rootfs=${ROOTFS_PART_MB})"
 
 # ==== 步骤2: 创建空白镜像 ====
@@ -134,8 +141,19 @@ info_msg "Extracting required kernel boot files..."
 BOOT_EXTRACT="$TMPDIR/boot_extract"
 mkdir -p "$BOOT_EXTRACT"
 sudo tar -mxzf "$KERNEL_BOOT" -C "$BOOT_EXTRACT"
-sudo cp -f "$BOOT_EXTRACT/vmlinuz-${KERNEL_NAME}" "$TAG_BOOTFS/zImage"
-sudo cp -f "$BOOT_EXTRACT/uInitrd-${KERNEL_NAME}" "$TAG_BOOTFS/uInitrd"
+SRC_VMLINUZ="$BOOT_EXTRACT/vmlinuz-${KERNEL_NAME}"
+SRC_UINITRD="$BOOT_EXTRACT/uInitrd-${KERNEL_NAME}"
+[[ -f "$SRC_VMLINUZ" ]] || error_msg "vmlinuz-${KERNEL_NAME} not found in boot tarball"
+[[ -f "$SRC_UINITRD" ]] || error_msg "uInitrd-${KERNEL_NAME} not found in boot tarball"
+
+# Detect TEXT_OFFSET patch: 0108 -> patched -> u-boot.ext not needed
+NEED_UBOOT_EXT="yes"
+TEXTOFF="$(hexdump -n 15 -x "$SRC_VMLINUZ" 2>/dev/null | awk 'NR==1{print $7}')"
+[[ "$TEXTOFF" == "0108" ]] && NEED_UBOOT_EXT="no"
+info_msg "TEXT_OFFSET marker: ${TEXTOFF:-unknown}, need u-boot.ext: ${NEED_UBOOT_EXT}"
+
+sudo cp -f "$SRC_VMLINUZ" "$TAG_BOOTFS/zImage"
+sudo cp -f "$SRC_UINITRD" "$TAG_BOOTFS/uInitrd"
 
 # ==== 步骤10: 提取目标 dtb 到 /boot/dtb/amlogic ====
 info_msg "Extracting target dtb..."
@@ -144,53 +162,28 @@ mkdir -p "$DTB_EXTRACT"
 sudo tar -mxzf "$KERNEL_DTB" -C "$DTB_EXTRACT"
 sudo mkdir -p "$TAG_BOOTFS/dtb/amlogic"
 sudo cp -f "$DTB_EXTRACT/${FDTFILE}" "$TAG_BOOTFS/dtb/amlogic/${FDTFILE}"
-# 如果存在 overlays，按需复制（可选但有助于扩展）
-[[ -d "$DTB_EXTRACT/overlays" ]] && sudo cp -a "$DTB_EXTRACT/overlays" "$TAG_BOOTFS/dtb/amlogic/"
-
-# ==== 步骤11: 解压 modules 并只复制启动相关模块 ====
-info_msg "Extracting kernel modules (minimal boot/runtime subset)..."
-MODULES_EXTRACT="$TMPDIR/modules_extract"
-mkdir -p "$MODULES_EXTRACT"
-sudo tar -mxzf "$KERNEL_MODULES" -C "$MODULES_EXTRACT" || {
+# ==== 步骤11: 解压完整 modules ====
+info_msg "Extracting full kernel modules..."
+sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
+sudo tar -mxzf "$KERNEL_MODULES" -C "${tag_rootfs}/usr/lib/modules" || {
   echo "[ERROR] Failed to extract modules: $KERNEL_MODULES"
   ls -lh "$KERNEL_MODULES"
   exit 1
 }
-
-SRC_MOD_DIR="$MODULES_EXTRACT/${KERNEL_NAME}"
 DST_MOD_DIR="${tag_rootfs}/usr/lib/modules/${KERNEL_NAME}"
-[[ -d "$SRC_MOD_DIR" ]] || error_msg "modules dir not found: $SRC_MOD_DIR"
-sudo mkdir -p "$DST_MOD_DIR/kernel"
+[[ -d "$DST_MOD_DIR" ]] || error_msg "modules dir not found after extract: $DST_MOD_DIR"
+info_msg "Full modules size: $(sudo du -sh "$DST_MOD_DIR" | awk '{print $1}')"
+info_msg "Rootfs used after modules: $(sudo du -sh "$tag_rootfs" | awk '{print $1}')"
+sudo df -h "$tag_rootfs" || true
+sudo df -i "$tag_rootfs" || true
 
-# 只复制启动/基础运行通常需要的模块和 depmod 元数据，避免把完整 modules 塞进最小 rootfs
-for f in modules.alias modules.alias.bin modules.builtin modules.builtin.alias.bin \
-         modules.builtin.bin modules.builtin.modinfo modules.dep modules.dep.bin \
-         modules.devname modules.order modules.softdep modules.symbols modules.symbols.bin; do
-  [[ -f "$SRC_MOD_DIR/$f" ]] && sudo cp -a "$SRC_MOD_DIR/$f" "$DST_MOD_DIR/"
-done
-
-for d in \
-  kernel/arch \
-  kernel/crypto \
-  kernel/fs \
-  kernel/lib \
-  kernel/net \
-  kernel/drivers/mmc \
-  kernel/drivers/usb \
-  kernel/drivers/net \
-  kernel/drivers/phy \
-  kernel/drivers/of \
-  kernel/drivers/firmware; do
-  [[ -d "$SRC_MOD_DIR/$d" ]] && sudo mkdir -p "$DST_MOD_DIR/$(dirname "$d")" && sudo cp -a "$SRC_MOD_DIR/$d" "$DST_MOD_DIR/$d"
-done
-
-info_msg "Minimal modules size: $(sudo du -sh "$DST_MOD_DIR" | awk '{print $1}')"; sudo du -sh "$DST_MOD_DIR"/* 2>/dev/null || true
-sudo depmod -b "$tag_rootfs" "$KERNEL_NAME" 2>/dev/null || true  # 刷新裁剪后的依赖索引，可失败但不影响镜像生成
-info_msg "Rootfs used after modules: $(sudo du -sh "$tag_rootfs" | awk '{print $1}')"; sudo df -h "$tag_rootfs" || true; sudo df -i "$tag_rootfs" || true
-sudo test -f "$DST_MOD_DIR/modules.dep" || error_msg "modules.dep missing after minimal modules copy" 
-
-# ==== 步骤12: 复制 u-boot.ext ====
-sudo cp -f "$UBOOT_EXT" "${TAG_BOOTFS}/u-boot.ext"
+# ==== 步骤12: 按需复制 u-boot.ext ====
+if [[ "$NEED_UBOOT_EXT" == "yes" ]]; then
+  sudo cp -f "$UBOOT_EXT" "${TAG_BOOTFS}/u-boot.ext"
+  info_msg "u-boot.ext copied."
+else
+  info_msg "u-boot.ext skipped."
+fi
 # bootfs 是 FAT32，不支持 Unix 权限位，无需 chmod
 
 # ==== 步骤13: 创建 uEnv.txt ====
@@ -202,20 +195,7 @@ APPEND=root=UUID=${ROOTFS_UUID} rootflags=data=writeback rw rootwait rootfstype=
 EOF
 sudo cp -f "$TMPDIR/uEnv.txt" "${TAG_BOOTFS}/uEnv.txt"
 
-# ==== 步骤14: 创建 armbianEnv.txt ====
-cat > "$TMPDIR/armbianEnv.txt" <<EOF
-verbosity=1
-bootlogo=false
-overlay_prefix=${FAMILY}
-fdtfile=${FDTFILE}
-rootdev=UUID=${ROOTFS_UUID}
-rootfstype=ext4
-rootflags=rw,errors=remount-ro
-usbstoragequirks=0x2537:0x1066:u,0x1058:0x1078:u
-EOF
-sudo cp -f "$TMPDIR/armbianEnv.txt" "${TAG_BOOTFS}/armbianEnv.txt"
-
-# ==== 步骤15: 创建 /etc/fstab ====
+# ==== 步骤14: 创建 /etc/fstab ====
 sudo bash -c "cat > '${tag_rootfs}/etc/fstab' <<'FSTAB'
 UUID=${ROOTFS_UUID}  /      ext4  defaults,noatime,nodiratime,commit=600,errors=remount-ro  0 1
 UUID=${BOOT_UUID}    /boot  vfat  defaults                                               0 2
