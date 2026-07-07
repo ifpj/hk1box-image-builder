@@ -22,6 +22,7 @@ env:
   FDTFILE: meson-sm1-hk1box-vontar-x3.dtb
   UBOOT_OVERLOAD: u-boot-x96maxplus.bin
   MAINLINE_UBOOT: hk1box-u-boot.bin.sd.bin
+  ROOTFS_VARIANT: default
 
 jobs:
   build:
@@ -86,13 +87,13 @@ jobs:
           echo "Using tarball release: ${TARBALL_TAG}"
           echo "tag=${TARBALL_TAG}" >> "$GITHUB_OUTPUT"
 
-          TARBALL_FILE="${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64.tar.zst"
+          TARBALL_FILE="${{ matrix.distro }}-${{ matrix.suite }}-${ROOTFS_VARIANT}-arm64.tar.zst"
           TARBALL_URL="https://github.com/${TARBALL_REPO}/releases/download/${TARBALL_TAG}/${TARBALL_FILE}"
           echo "Downloading ${TARBALL_URL}..."
           curl -fsSL "$TARBALL_URL" -o "/tmp/${TARBALL_FILE}"
 
           # 同时下载 manifest（可选，用于日志参考）
-          MANIFEST_FILE="${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64-manifest.txt"
+          MANIFEST_FILE="${{ matrix.distro }}-${{ matrix.suite }}-${ROOTFS_VARIANT}-arm64-manifest.txt"
           curl -fsSL "https://github.com/${TARBALL_REPO}/releases/download/${TARBALL_TAG}/${MANIFEST_FILE}" \
             -o "/tmp/${MANIFEST_FILE}" 2>/dev/null || true
 
@@ -119,7 +120,7 @@ jobs:
           KERNEL_VER="${{ steps.kernel.outputs.version }}"
           KERNEL_DIR="/tmp/kernel_extracted/${KERNEL_VER}"
           sudo ./build-image.sh \
-            --tarball "/tmp/${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64.tar.zst" \
+            --tarball "/tmp/${{ matrix.distro }}-${{ matrix.suite }}-${ROOTFS_VARIANT}-arm64.tar.zst" \
             --kernel-boot "${KERNEL_DIR}/boot-${KERNEL_VER}-ophub.tar.gz" \
             --kernel-dtb "${KERNEL_DIR}/dtb-amlogic-${KERNEL_VER}-ophub.tar.gz" \
             --kernel-modules "${KERNEL_DIR}/modules-${KERNEL_VER}-ophub.tar.gz" \
