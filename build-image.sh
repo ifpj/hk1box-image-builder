@@ -195,17 +195,52 @@ APPEND=root=UUID=${ROOTFS_UUID} rootflags=data=writeback rw rootwait rootfstype=
 EOF
 sudo cp -f "$TMPDIR/uEnv.txt" "${TAG_BOOTFS}/uEnv.txt"
 
-# ==== 步骤14: 创建 /etc/fstab ====
+# ==== 步骤14: 创建 /etc/fstab 和基础系统配置 ====
 sudo bash -c "cat > '${tag_rootfs}/etc/fstab' <<'FSTAB'
 UUID=${ROOTFS_UUID}  /      ext4  defaults,noatime,nodiratime,commit=600,errors=remount-ro  0 1
 UUID=${BOOT_UUID}    /boot  vfat  defaults                                               0 2
 tmpfs                /tmp   tmpfs defaults,nosuid                                        0 0
 FSTAB"
 
-# ==== 步骤16: 不做额外修剪/权限修复 ====
-# mmdebstrap 生成的 rootfs 保持原样；只写入启动必需的 kernel、dtb、modules、u-boot 和 fstab。
+# hostname / hosts
+sudo bash -c "cat > '${tag_rootfs}/etc/hostname' <<'EOF'
+hk1box
+EOF
+cat > '${tag_rootfs}/etc/hosts' <<'EOF'
+127.0.0.1   localhost
+127.0.1.1   hk1box
+EOF"
 
-# ==== 步骤17: umount ====
+# systemd-networkd: eth* DHCP
+sudo mkdir -p "${tag_rootfs}/etc/systemd/network"
+sudo bash -c "cat > '${tag_rootfs}/etc/systemd/network/20-wired.network' <<'EOF'
+[Match]
+Name=eth*
+
+[Network]
+DHCP=yes
+EOF"
+
+# enable networkd, ssh and serial console for ttyAML0
+sudo mkdir -p "${tag_rootfs}/etc/systemd/system/multi-user.target.wants" \
+             "${tag_rootfs}/etc/systemd/system/getty.target.wants"
+sudo ln -sf /lib/systemd/system/systemd-networkd.service \
+  "${tag_rootfs}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
+sudo ln -sf /lib/systemd/system/ssh.service \
+  "${tag_rootfs}/etc/systemd/system/multi-user.target.wants/ssh.service"
+sudo ln -sf /lib/systemd/system/serial-getty@.service \
+  "${tag_rootfs}/etc/systemd/system/getty.target.wants/serial-getty@ttyAML0.service"
+
+# test convenience: root/root and allow SSH password login
+sudo chroot "${tag_rootfs}" /bin/sh -c "echo 'root:root' | chpasswd" || true
+if [[ -f "${tag_rootfs}/etc/ssh/sshd_config" ]]; then
+  sudo sed -i \
+    -e 's|^#*PermitRootLogin.*|PermitRootLogin yes|' \
+    -e 's|^#*PasswordAuthentication.*|PasswordAuthentication yes|' \
+    "${tag_rootfs}/etc/ssh/sshd_config"
+fi
+
+# ==== 步骤15: umount ====
 info_msg "Unmounting..."
 sudo sync
 sudo umount "$TAG_BOOTFS"
