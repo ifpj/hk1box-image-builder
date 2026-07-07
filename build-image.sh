@@ -114,17 +114,24 @@ LOOP_DEV="$(sudo losetup -P -f --show "$BUILD_IMAGE")"
 [[ -n "$LOOP_DEV" ]] || error_msg "losetup failed"
 trap "sudo umount '$TAG_BOOTFS' '$tag_rootfs' 2>/dev/null || true; sudo losetup -d '$LOOP_DEV' 2>/dev/null || true; rm -rf '$TMPDIR'" EXIT
 
-# ==== 步骤5: 生成 UUID ====
-BOOT_UUID="$(cat /proc/sys/kernel/random/random_uuid 2>/dev/null || uuidgen)"
+# ==== 步骤5: 生成 rootfs UUID ====
 ROOTFS_UUID="$(cat /proc/sys/kernel/random/random_uuid 2>/dev/null || uuidgen)"
-info_msg "BOOT_UUID=$BOOT_UUID"
-info_msg "ROOTFS_UUID=$ROOTFS_UUID"
+info_msg "ROOTFS_UUID(planned)=$ROOTFS_UUID"
 
-# ==== 步骤6: 格式化 ====
+# ==== 步骤6: 格式化，并读取真实 UUID ====
 info_msg "Formatting bootfs (vfat)..."
 sudo mkfs.vfat -F 32 -n "BOOT" "${LOOP_DEV}p1" >/dev/null 2>&1
 info_msg "Formatting rootfs (ext4)..."
 sudo mkfs.ext4 -F -q -U "$ROOTFS_UUID" -L "ROOTFS" -b 4096 -m 0 "${LOOP_DEV}p2" >/dev/null 2>&1
+
+# 读取格式化后的真实 UUID。vfat 的 UUID 是 XXXX-XXXX，不能使用 Linux random_uuid。
+BOOT_UUID="$(sudo blkid -s UUID -o value "${LOOP_DEV}p1")"
+ROOTFS_UUID_REAL="$(sudo blkid -s UUID -o value "${LOOP_DEV}p2")"
+[[ -n "$BOOT_UUID" ]] || error_msg "failed to read bootfs UUID"
+[[ -n "$ROOTFS_UUID_REAL" ]] || error_msg "failed to read rootfs UUID"
+ROOTFS_UUID="$ROOTFS_UUID_REAL"
+info_msg "BOOT_UUID(actual)=$BOOT_UUID"
+info_msg "ROOTFS_UUID(actual)=$ROOTFS_UUID"
 
 # ==== 步骤7: 写入 u-boot MBR ====
 info_msg "Writing u-boot MBR..."
@@ -210,7 +217,7 @@ sudo cp -f "$TMPDIR/uEnv.txt" "${TAG_BOOTFS}/uEnv.txt"
 # ==== 步骤14: 创建 /etc/fstab 和基础系统配置 ====
 sudo bash -c "cat > '${tag_rootfs}/etc/fstab' <<'FSTAB'
 UUID=${ROOTFS_UUID}  /      ext4  defaults,noatime,nodiratime,commit=600,errors=remount-ro  0 1
-UUID=${BOOT_UUID}    /boot  vfat  defaults                                               0 2
+UUID=${BOOT_UUID}    /boot  vfat  defaults,noatime                                      0 2
 tmpfs                /tmp   tmpfs defaults,nosuid                                        0 0
 FSTAB"
 
