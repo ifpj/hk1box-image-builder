@@ -72,15 +72,16 @@ trap "rm -rf '$TMPDIR'" EXIT
 
 TAG_BOOTFS="$TMPDIR/bootfs"
 tag_rootfs="$TMPDIR/rootfs"
+EXTRACT_ROOTFS="$TMPDIR/extracted_rootfs"
 BUILD_IMAGE="$TMPDIR/build.img"
-mkdir -p "$TAG_BOOTFS" "$tag_rootfs"
+mkdir -p "$TAG_BOOTFS" "$tag_rootfs" "$EXTRACT_ROOTFS"
 
 # ==== 步骤1: 解压 tarball 估算 rootfs 大小 ====
 info_msg "Extracting tarball to estimate size..."
 zstd -d "$TARBALL" -o "$TMPDIR/tarball.tar"
-sudo tar xf "$TMPDIR/tarball.tar" -C "$tag_rootfs"
+sudo tar xf "$TMPDIR/tarball.tar" -C "$EXTRACT_ROOTFS"
 
-ROOTFS_BYTES="$(sudo du -sb "$tag_rootfs" | cut -f1)"
+ROOTFS_BYTES="$(sudo du -sb "$EXTRACT_ROOTFS" | cut -f1)"
 ROOTFS_MB="$(( ROOTFS_BYTES / 1024 / 1024 ))"
 # rootfs 分区 = tarball × 2 + 256MB buffer，但至少 1024MB
 ROOTFS_PART_MB="$(( ROOTFS_MB * 2 + 256 ))"
@@ -126,6 +127,10 @@ sudo dd if="$UBOOT_MBR" of="$LOOP_DEV" conv=fsync bs=512 skip=1 seek=1 2>/dev/nu
 info_msg "Mounting partitions..."
 sudo mount "${LOOP_DEV}p1" "$TAG_BOOTFS"
 sudo mount "${LOOP_DEV}p2" "$tag_rootfs"
+
+# ==== 步骤8.5: 复制 rootfs 内容到镜像 ====
+info_msg "Copying rootfs content into image..."
+sudo cp -a "$EXTRACT_ROOTFS/." "$tag_rootfs/"
 
 # ==== 步骤9: 解压内核 boot 到 /boot ====
 info_msg "Extracting kernel boot files..."
