@@ -147,14 +147,35 @@ sudo cp -f "$DTB_EXTRACT/${FDTFILE}" "$TAG_BOOTFS/dtb/amlogic/${FDTFILE}"
 # 如果存在 overlays，按需复制（可选但有助于扩展）
 [[ -d "$DTB_EXTRACT/overlays" ]] && sudo cp -a "$DTB_EXTRACT/overlays" "$TAG_BOOTFS/dtb/amlogic/"
 
-# ==== 步骤11: 解压 modules ====
-info_msg "Extracting kernel modules..."
-sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
-sudo tar -mxzf "$KERNEL_MODULES" -C "${tag_rootfs}/usr/lib/modules" || {
+# ==== 步骤11: 解压 modules 并精简 ====
+info_msg "Extracting kernel modules (minimal)..."
+MODULES_EXTRACT="$TMPDIR/modules_extract"
+mkdir -p "$MODULES_EXTRACT"
+sudo tar -mxzf "$KERNEL_MODULES" -C "$MODULES_EXTRACT" || {
   echo "[ERROR] Failed to extract modules: $KERNEL_MODULES"
   ls -lh "$KERNEL_MODULES"
   exit 1
 }
+# 删除明显非启动必需的模块目录
+for d in kernel/sound \
+         kernel/drivers/staging \
+         kernel/drivers/video \
+         kernel/drivers/media \
+         kernel/drivers/hwmon \
+         kernel/drivers/leds \
+         kernel/drivers/thermal \
+         kernel/drivers/input \
+         kernel/drivers/isdn \
+         kernel/drivers/telephony \
+         kernel/drivers/mfd \
+         kernel/drivers/perf \
+         kernel/drivers/spmi \
+         kernel/drivers/reset \
+         kernel/drivers/clk; do
+  sudo rm -rf "$MODULES_EXTRACT/$d" 2>/dev/null || true
+done
+sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
+sudo cp -a "$MODULES_EXTRACT/." "${tag_rootfs}/usr/lib/modules/"
 
 # ==== 步骤12: 复制 u-boot.ext ====
 sudo cp -f "$UBOOT_EXT" "${TAG_BOOTFS}/u-boot.ext"
