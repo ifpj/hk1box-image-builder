@@ -264,7 +264,7 @@ sudo umount "$tag_rootfs"
 sudo losetup -d "$LOOP_DEV"
 
 # ==== 步骤20: 压缩输出 ====
-OUTPUT_FILE="${OUTPUT_PREFIX}_stable.img"
+OUTPUT_FILE="${OUTPUT_PREFIX}_${KERNEL_NAME}.img"
 OUTPUT_GZ="${OUTPUT_FILE}.gz"
 info_msg "Compressing to ${OUTPUT_GZ}..."
 sudo cp "$BUILD_IMAGE" "$OUTPUT_FILE"
