@@ -58,7 +58,7 @@ SOC="s905x3"
 FDTFILE="meson-sm1-hk1box-vontar-x3.dtb"
 FAMILY="meson-sm1"
 BOOT_CONF="uEnv.txt"
-BOOT_MB="256"
+BOOT_MB="180"
 SKIP_MB="4"
 BOOTFS_TYPE="fat32"
 ROOTFS_TYPE="ext4"
@@ -90,9 +90,9 @@ info_msg "Estimating full kernel modules size..."
 MODULES_BYTES="$(tar -tvzf "$KERNEL_MODULES" | awk '{sum += $3} END {print sum+0}')"
 MODULES_MB="$(( (MODULES_BYTES + 1024*1024 - 1) / 1024 / 1024 ))"
 
-# rootfs 分区 = rootfs内容 + 完整modules + 256MB buffer，但至少 1024MB
-ROOTFS_PART_MB="$(( ROOTFS_MB + MODULES_MB + 256 ))"
-[[ "$ROOTFS_PART_MB" -lt 1024 ]] && ROOTFS_PART_MB="1024"
+# rootfs 分区 = rootfs内容 + 完整modules + 200MB buffer，然后向上取整到 10MB
+RAW_ROOTFS_PART_MB="$(( ROOTFS_MB + MODULES_MB + 200 ))"
+ROOTFS_PART_MB="$(( ((RAW_ROOTFS_PART_MB + 9) / 10) * 10 ))"
 
 TOTAL_MB="$(( SKIP_MB + BOOT_MB + ROOTFS_PART_MB ))"
 info_msg "Rootfs content: ${ROOTFS_MB}MB"
