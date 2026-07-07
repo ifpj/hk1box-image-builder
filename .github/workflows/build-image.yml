@@ -45,7 +45,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             zstd parted dosfstools e2fsprogs uuid-runtime curl jq \
-            pigz git
+            pigz git kmod
 
       - name: Query and download kernel packages
         id: kernel

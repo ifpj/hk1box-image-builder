@@ -147,8 +147,8 @@ sudo cp -f "$DTB_EXTRACT/${FDTFILE}" "$TAG_BOOTFS/dtb/amlogic/${FDTFILE}"
 # 如果存在 overlays，按需复制（可选但有助于扩展）
 [[ -d "$DTB_EXTRACT/overlays" ]] && sudo cp -a "$DTB_EXTRACT/overlays" "$TAG_BOOTFS/dtb/amlogic/"
 
-# ==== 步骤11: 解压 modules 并精简 ====
-info_msg "Extracting kernel modules (minimal)..."
+# ==== 步骤11: 解压 modules 并只复制启动相关模块 ====
+info_msg "Extracting kernel modules (minimal boot/runtime subset)..."
 MODULES_EXTRACT="$TMPDIR/modules_extract"
 mkdir -p "$MODULES_EXTRACT"
 sudo tar -mxzf "$KERNEL_MODULES" -C "$MODULES_EXTRACT" || {
@@ -156,26 +156,38 @@ sudo tar -mxzf "$KERNEL_MODULES" -C "$MODULES_EXTRACT" || {
   ls -lh "$KERNEL_MODULES"
   exit 1
 }
-# 删除明显非启动必需的模块目录
-for d in kernel/sound \
-         kernel/drivers/staging \
-         kernel/drivers/video \
-         kernel/drivers/media \
-         kernel/drivers/hwmon \
-         kernel/drivers/leds \
-         kernel/drivers/thermal \
-         kernel/drivers/input \
-         kernel/drivers/isdn \
-         kernel/drivers/telephony \
-         kernel/drivers/mfd \
-         kernel/drivers/perf \
-         kernel/drivers/spmi \
-         kernel/drivers/reset \
-         kernel/drivers/clk; do
-  sudo rm -rf "$MODULES_EXTRACT/$d" 2>/dev/null || true
+
+SRC_MOD_DIR="$MODULES_EXTRACT/${KERNEL_NAME}"
+DST_MOD_DIR="${tag_rootfs}/usr/lib/modules/${KERNEL_NAME}"
+[[ -d "$SRC_MOD_DIR" ]] || error_msg "modules dir not found: $SRC_MOD_DIR"
+sudo mkdir -p "$DST_MOD_DIR/kernel"
+
+# 只复制启动/基础运行通常需要的模块和 depmod 元数据，避免把完整 modules 塞进最小 rootfs
+for f in modules.alias modules.alias.bin modules.builtin modules.builtin.alias.bin \
+         modules.builtin.bin modules.builtin.modinfo modules.dep modules.dep.bin \
+         modules.devname modules.order modules.softdep modules.symbols modules.symbols.bin; do
+  [[ -f "$SRC_MOD_DIR/$f" ]] && sudo cp -a "$SRC_MOD_DIR/$f" "$DST_MOD_DIR/"
 done
-sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
-sudo cp -a "$MODULES_EXTRACT/." "${tag_rootfs}/usr/lib/modules/"
+
+for d in \
+  kernel/arch \
+  kernel/crypto \
+  kernel/fs \
+  kernel/lib \
+  kernel/net \
+  kernel/drivers/mmc \
+  kernel/drivers/usb \
+  kernel/drivers/net \
+  kernel/drivers/phy \
+  kernel/drivers/of \
+  kernel/drivers/firmware; do
+  [[ -d "$SRC_MOD_DIR/$d" ]] && sudo mkdir -p "$DST_MOD_DIR/$(dirname "$d")" && sudo cp -a "$SRC_MOD_DIR/$d" "$DST_MOD_DIR/$d"
+done
+
+info_msg "Minimal modules size: $(sudo du -sh "$DST_MOD_DIR" | awk '{print $1}')"; sudo du -sh "$DST_MOD_DIR"/* 2>/dev/null || true
+sudo depmod -b "$tag_rootfs" "$KERNEL_NAME" 2>/dev/null || true  # 刷新裁剪后的依赖索引，可失败但不影响镜像生成
+info_msg "Rootfs used after modules: $(sudo du -sh "$tag_rootfs" | awk '{print $1}')"; sudo df -h "$tag_rootfs" || true; sudo df -i "$tag_rootfs" || true
+sudo test -f "$DST_MOD_DIR/modules.dep" || error_msg "modules.dep missing after minimal modules copy" 
 
 # ==== 步骤12: 复制 u-boot.ext ====
 sudo cp -f "$UBOOT_EXT" "${TAG_BOOTFS}/u-boot.ext"
