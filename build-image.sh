@@ -222,32 +222,10 @@ UUID=${BOOT_UUID}    /boot  vfat  defaults                                      
 tmpfs                /tmp   tmpfs defaults,nosuid                                        0 0
 FSTAB"
 
-# ==== 步骤16: 修复权限 ====
-sudo bash -c "
-  cd '${tag_rootfs}'
-  [[ -d 'var/tmp' ]] && chmod 777 var/tmp
-  [[ -f 'etc/sudoers' ]] && chown root:root etc/sudoers && chmod 440 etc/sudoers
-  [[ -f 'usr/bin/sudo' ]] && chown root:root usr/bin/sudo && chmod 4755 usr/bin/sudo
-"
+# ==== 步骤16: 不做额外修剪/权限修复 ====
+# mmdebstrap 生成的 rootfs 保持原样；只写入启动必需的 kernel、dtb、modules、u-boot 和 fstab。
 
-# ==== 步骤18: 清理不必要的文件 ====
-info_msg "Cleaning up unnecessary files..."
-sudo bash -c "
-  cd '${tag_rootfs}'
-  # 删除 Armbian 品牌残留（如果 tarball 里已有）
-  rm -rf usr/share/armbian 2>/dev/null || true
-  rm -rf usr/lib/nand-sata-install 2>/dev/null || true
-  rm -f etc/apt/sources.list.save 2>/dev/null || true
-  rm -rf usr/share/doc/linux-image-* 2>/dev/null || true
-  rm -rf usr/lib/linux-image-* 2>/dev/null || true
-  # 删除 motd-news
-  rm -f usr/lib/systemd/system/motd-news.* 2>/dev/null || true
-  rm -f etc/update-motd.d/50-motd-news 2>/dev/null || true
-  # 删除 dpkg 残留
-  rm -f var/lib/dpkg/info/linux-image* 2>/dev/null || true
-"
-
-# ==== 步骤19: umount ====
+# ==== 步骤17: umount ====
 info_msg "Unmounting..."
 sudo sync
 sudo umount "$TAG_BOOTFS"
