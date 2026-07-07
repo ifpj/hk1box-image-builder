@@ -1,0 +1,176 @@
+name: Build HK1 Box bootable image
+
+on:
+  push:
+    tags:
+      - 'v*'
+  schedule:
+    - cron: '0 0 15 * *'
+  workflow_dispatch:
+    inputs:
+      tarball_tag:
+        description: 'mmdebstrap tarball release tag (default: latest)'
+        required: false
+        default: 'latest'
+
+env:
+  TARBALL_REPO: ifpj/mmdebstrap-rootfs-builder
+  KERNEL_REPO: ophub/kernel
+  KERNEL_TAGS: kernel_stable
+  UBOOT_REPO: ophub/u-boot
+  BOARD: s905x3-hk1
+  FDTFILE: meson-sm1-hk1box-vontar-x3.dtb
+  UBOOT_OVERLOAD: u-boot-x96maxplus.bin
+  MAINLINE_UBOOT: hk1box-u-boot.bin.sd.bin
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian
+            suite: trixie
+          - distro: ubuntu
+            suite: resolute
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            zstd parted dosfstools e2fsprogs uuid-runtime curl jq \
+            pigz git
+
+      - name: Query and download kernel packages
+        id: kernel
+        run: |
+          echo "Querying kernel_stable release from ${KERNEL_REPO}..."
+          KERNEL_API="https://api.github.com/repos/${KERNEL_REPO}/releases/tags/${KERNEL_TAGS}"
+          curl -fsSL "$KERNEL_API" -o /tmp/kernel_release.json
+
+          # 提取 boot 文件名，推断版本号
+          BOOT_NAME="$(jq -r '.assets[].name' /tmp/kernel_release.json | grep '^boot-' | grep '\.tar\.gz$' | head -1)"
+          [[ -z "$BOOT_NAME" ]] && echo "error: No boot-*.tar.gz found in ${KERNEL_TAGS}" && exit 1
+          KERNEL_VER="${BOOT_NAME#boot-}"
+          KERNEL_VER="${KERNEL_VER%.tar.gz}"
+          echo "Found kernel: ${KERNEL_VER}"
+          echo "version=${KERNEL_VER}" >> "$GITHUB_OUTPUT"
+
+          # 下载 4 个内核包
+          DL_BASE="https://github.com/${KERNEL_REPO}/releases/download/${KERNEL_TAGS}"
+          for f in "boot-${KERNEL_VER}.tar.gz" \
+                   "dtb-amlogic-${KERNEL_VER}.tar.gz" \
+                   "modules-${KERNEL_VER}.tar.gz" \
+                   "header-${KERNEL_VER}.tar.gz"; do
+            echo "Downloading ${f}..."
+            curl -fsSL "${DL_BASE}/${f}" -o "/tmp/${f}"
+          done
+
+          # 下载 sha256sums 用于校验
+          curl -fsSL "${DL_BASE}/sha256sums" -o /tmp/sha256sums 2>/dev/null || true
+          if [[ -f /tmp/sha256sums ]]; then
+            cd /tmp && sha256sum -c sha256sums --ignore-missing 2>/dev/null || true
+          fi
+
+          ls -lh /tmp/*.tar.gz
+
+      - name: Query and download mmdebstrap tarball
+        id: tarball
+        run: |
+          TARBALL_TAG="${{ github.event.inputs.tarball_tag || 'latest' }}"
+          if [[ "$TARBALL_TAG" == 'latest' ]]; then
+            TARBALL_TAG="$(curl -fsSL "https://api.github.com/repos/${TARBALL_REPO}/releases/latest" | jq -r '.tag_name')"
+          fi
+          echo "Using tarball release: ${TARBALL_TAG}"
+          echo "tag=${TARBALL_TAG}" >> "$GITHUB_OUTPUT"
+
+          TARBALL_FILE="${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64.tar.zst"
+          TARBALL_URL="https://github.com/${TARBALL_REPO}/releases/download/${TARBALL_TAG}/${TARBALL_FILE}"
+          echo "Downloading ${TARBALL_URL}..."
+          curl -fsSL "$TARBALL_URL" -o "/tmp/${TARBALL_FILE}"
+
+          # 同时下载 manifest（可选，用于日志参考）
+          MANIFEST_FILE="${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64-manifest.txt"
+          curl -fsSL "https://github.com/${TARBALL_REPO}/releases/download/${TARBALL_TAG}/${MANIFEST_FILE}" \
+            -o "/tmp/${MANIFEST_FILE}" 2>/dev/null || true
+
+          ls -lh "/tmp/${TARBALL_FILE}"
+
+      - name: Download u-boot files
+        run: |
+          echo "Cloning u-boot repo..."
+          git clone --depth 1 "https://github.com/${UBOOT_REPO}.git" /tmp/u-boot-repo
+
+          UBOOT_MBR_SRC="/tmp/u-boot-repo/amlogic/bootloader/${MAINLINE_UBOOT}"
+          UBOOT_EXT_SRC="/tmp/u-boot-repo/amlogic/bootloader/${UBOOT_OVERLOAD}"
+
+          [[ -f "$UBOOT_MBR_SRC" ]] || { echo "error: ${UBOOT_MBR_SRC} not found"; exit 1; }
+          [[ -f "$UBOOT_EXT_SRC" ]] || { echo "error: ${UBOOT_EXT_SRC} not found"; exit 1; }
+
+          cp -f "$UBOOT_MBR_SRC" /tmp/uboot-mbr.bin
+          cp -f "$UBOOT_EXT_SRC" /tmp/uboot-ext.bin
+          ls -lh /tmp/uboot-*.bin
+
+      - name: Build HK1 Box image
+        id: build
+        run: |
+          sudo ./build-image.sh \
+            --tarball "/tmp/${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64.tar.zst" \
+            --kernel-boot "/tmp/boot-${{ steps.kernel.outputs.version }}.tar.gz" \
+            --kernel-dtb "/tmp/dtb-amlogic-${{ steps.kernel.outputs.version }}.tar.gz" \
+            --kernel-modules "/tmp/modules-${{ steps.kernel.outputs.version }}.tar.gz" \
+            --kernel-header "/tmp/header-${{ steps.kernel.outputs.version }}.tar.gz" \
+            --uboot-mbr /tmp/uboot-mbr.bin \
+            --uboot-ext /tmp/uboot-ext.bin \
+            --distro "${{ matrix.distro }}" \
+            --suite "${{ matrix.suite }}" \
+            --output "${{ matrix.distro }}-${{ matrix.suite }}_${{ steps.kernel.outputs.version }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.distro }}-${{ matrix.suite }}-image
+          path: |
+            ${{ matrix.distro }}-${{ matrix.suite }}_*.img.gz
+            ${{ matrix.distro }}-${{ matrix.suite }}_*.img.gz.sha256
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh *.img.gz *.sha256 2>/dev/null || true
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.img.gz
+            *.sha256
+          name: "HK1 Box Image ${{ github.ref_name || github.run_id }}"
+          tag_name: ${{ github.ref_name || format('build-{0}', github.run_id) }}
+          generate_release_notes: true
+          body: |
+            Bootable HK1 Box (Amlogic S905X3) images built from mmdebstrap tarball + ophub kernel.
+
+            | Distro | Suite | Kernel |
+            |--------|-------|--------|
+            | Debian | trixie | Latest kernel_stable |
+            | Ubuntu | resolute | Latest kernel_stable |
+
+            ### Flashing
+            Use `balenaEtcher` / `dd` / `Amlogic USB Burning Tool` to flash `.img.gz` to SD card or USB disk.
