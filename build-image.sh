@@ -141,7 +141,8 @@ info_msg "Copying rootfs content into image..."
 sudo cp -a "$EXTRACT_ROOTFS/." "$tag_rootfs/"
 
 info_msg "Copying Amlogic boot scripts..."
-sudo cp -a "$PLATFORM_BOOTFS/." "$TAG_BOOTFS/"
+# bootfs is FAT32; do not preserve Unix ownership/mode.
+sudo cp -r --no-preserve=ownership,mode "$PLATFORM_BOOTFS/." "$TAG_BOOTFS/"
 
 # ==== 步骤9: 提取内核 boot 必要文件到 /boot ====
 info_msg "Extracting required kernel boot files..."
