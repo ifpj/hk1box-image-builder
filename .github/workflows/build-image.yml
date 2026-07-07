@@ -54,31 +54,27 @@ jobs:
           KERNEL_API="https://api.github.com/repos/${KERNEL_REPO}/releases/tags/${KERNEL_TAGS}"
           curl -fsSL "$KERNEL_API" -o /tmp/kernel_release.json
 
-          # 提取 boot 文件名，推断版本号
-          BOOT_NAME="$(jq -r '.assets[].name' /tmp/kernel_release.json | grep '^boot-' | grep '\.tar\.gz$' | head -1)"
-          [[ -z "$BOOT_NAME" ]] && echo "error: No boot-*.tar.gz found in ${KERNEL_TAGS}" && exit 1
-          KERNEL_VER="${BOOT_NAME#boot-}"
-          KERNEL_VER="${KERNEL_VER%.tar.gz}"
-          echo "Found kernel: ${KERNEL_VER}"
-          echo "version=${KERNEL_VER}" >> "$GITHUB_OUTPUT"
+          # kernel_stable release 的 asset 是 {version}.tar.gz（大包），里面包含 4 个子包
+          LATEST_VERSION="$(jq -r '.assets[].name' /tmp/kernel_release.json | grep -v '^deb-' | grep '\.tar\.gz$' | sed 's/\.tar\.gz$//' | sort -V | tail -1)"
+          [[ -z "$LATEST_VERSION" ]] && echo "error: No kernel tar.gz found in ${KERNEL_TAGS}" && exit 1
+          echo "Found kernel version: ${LATEST_VERSION}"
+          echo "version=${LATEST_VERSION}" >> "$GITHUB_OUTPUT"
 
-          # 下载 4 个内核包
-          DL_BASE="https://github.com/${KERNEL_REPO}/releases/download/${KERNEL_TAGS}"
-          for f in "boot-${KERNEL_VER}.tar.gz" \
-                   "dtb-amlogic-${KERNEL_VER}.tar.gz" \
-                   "modules-${KERNEL_VER}.tar.gz" \
-                   "header-${KERNEL_VER}.tar.gz"; do
-            echo "Downloading ${f}..."
-            curl -fsSL "${DL_BASE}/${f}" -o "/tmp/${f}"
-          done
+          # 下载大包
+          KERNEL_TAR_URL="https://github.com/${KERNEL_REPO}/releases/download/${KERNEL_TAGS}/${LATEST_VERSION}.tar.gz"
+          echo "Downloading ${LATEST_VERSION}.tar.gz..."
+          curl -fsSL "$KERNEL_TAR_URL" -o "/tmp/${LATEST_VERSION}.tar.gz"
 
-          # 下载 sha256sums 用于校验
-          curl -fsSL "${DL_BASE}/sha256sums" -o /tmp/sha256sums 2>/dev/null || true
-          if [[ -f /tmp/sha256sums ]]; then
-            cd /tmp && sha256sum -c sha256sums --ignore-missing 2>/dev/null || true
+          # 解压得到 boot/dtb/modules/header 四个子包
+          mkdir -p /tmp/kernel_extracted
+          tar -mxzf "/tmp/${LATEST_VERSION}.tar.gz" -C /tmp/kernel_extracted
+          echo "Extracted kernel files:"
+          ls -lh /tmp/kernel_extracted/
+
+          # sha256sums 校验（如果存在）
+          if [[ -f /tmp/kernel_extracted/sha256sums ]]; then
+            cd /tmp/kernel_extracted && sha256sum -c sha256sums --ignore-missing 2>/dev/null || true
           fi
-
-          ls -lh /tmp/*.tar.gz
 
       - name: Query and download mmdebstrap tarball
         id: tarball
@@ -122,10 +118,10 @@ jobs:
         run: |
           sudo ./build-image.sh \
             --tarball "/tmp/${{ matrix.distro }}-${{ matrix.suite }}-minbase-arm64.tar.zst" \
-            --kernel-boot "/tmp/boot-${{ steps.kernel.outputs.version }}.tar.gz" \
-            --kernel-dtb "/tmp/dtb-amlogic-${{ steps.kernel.outputs.version }}.tar.gz" \
-            --kernel-modules "/tmp/modules-${{ steps.kernel.outputs.version }}.tar.gz" \
-            --kernel-header "/tmp/header-${{ steps.kernel.outputs.version }}.tar.gz" \
+            --kernel-boot "/tmp/kernel_extracted/boot-${{ steps.kernel.outputs.version }}-ophub.tar.gz" \
+            --kernel-dtb "/tmp/kernel_extracted/dtb-amlogic-${{ steps.kernel.outputs.version }}-ophub.tar.gz" \
+            --kernel-modules "/tmp/kernel_extracted/modules-${{ steps.kernel.outputs.version }}-ophub.tar.gz" \
+            --kernel-header "/tmp/kernel_extracted/header-${{ steps.kernel.outputs.version }}-ophub.tar.gz" \
             --uboot-mbr /tmp/uboot-mbr.bin \
             --uboot-ext /tmp/uboot-ext.bin \
             --distro "${{ matrix.distro }}" \
