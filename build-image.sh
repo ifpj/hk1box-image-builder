@@ -221,15 +221,12 @@ Name=eth*
 DHCP=yes
 EOF"
 
-# enable networkd, ssh and serial console for ttyAML0
-sudo mkdir -p "${tag_rootfs}/etc/systemd/system/multi-user.target.wants" \
-             "${tag_rootfs}/etc/systemd/system/getty.target.wants"
+# enable networkd and ssh
+sudo mkdir -p "${tag_rootfs}/etc/systemd/system/multi-user.target.wants"
 sudo ln -sf /lib/systemd/system/systemd-networkd.service \
   "${tag_rootfs}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
 sudo ln -sf /lib/systemd/system/ssh.service \
   "${tag_rootfs}/etc/systemd/system/multi-user.target.wants/ssh.service"
-sudo ln -sf /lib/systemd/system/serial-getty@.service \
-  "${tag_rootfs}/etc/systemd/system/getty.target.wants/serial-getty@ttyAML0.service"
 
 # test convenience: root/root and allow SSH password login
 sudo chroot "${tag_rootfs}" /bin/sh -c "echo 'root:root' | chpasswd" || true
