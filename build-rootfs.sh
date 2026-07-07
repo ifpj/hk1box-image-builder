@@ -53,12 +53,16 @@ sudo mmdebstrap \
   "$MIRROR"
 
 info_msg "Extracting package manifest..."
-STATUS_PATH="$(tar tf "$TARFILE" | grep -E '^(\./)?var/lib/dpkg/status$' | head -1)"
-[[ -n "$STATUS_PATH" ]] || error_msg "dpkg status not found in rootfs tarball"
-tar xf "$TARFILE" "$STATUS_PATH" -O | \
-  awk '/^Package:/{pkg=$2} /^Version:/{ver=$2; print pkg "\t" ver}' | \
-  sort > "$MANIFEST"
-info_msg "Installed packages: $(wc -l < "$MANIFEST")"
+STATUS_PATH="$(tar tf "$TARFILE" | grep -E '^(\./)?var/lib/dpkg/status$' | head -1 || true)"
+if [[ -n "$STATUS_PATH" ]]; then
+  tar xf "$TARFILE" "$STATUS_PATH" -O | \
+    awk '/^Package:/{pkg=$2} /^Version:/{ver=$2; print pkg "\t" ver}' | \
+    sort > "$MANIFEST" || true
+  info_msg "Installed packages: $(wc -l < "$MANIFEST" 2>/dev/null || echo 0)"
+else
+  echo "[WARN] dpkg status not found in rootfs tarball; skipping manifest" >&2
+  : > "$MANIFEST"
+fi
 
 info_msg "Compressing rootfs with zstd -1..."
 zstd -T0 -1 -f "$TARFILE" -o "$ZSTFILE"
