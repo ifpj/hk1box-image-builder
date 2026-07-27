@@ -36,7 +36,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install build dependencies
         run: |
@@ -116,7 +116,7 @@ jobs:
             --output "${{ matrix.distro }}-${{ matrix.suite }}"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.distro }}-${{ matrix.suite }}-image
           path: |
@@ -131,7 +131,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           merge-multiple: true
 
@@ -139,7 +139,7 @@ jobs:
         run: ls -lh *.img.gz *.sha256 2>/dev/null || true
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             *.img.gz
