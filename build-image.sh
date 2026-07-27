@@ -258,9 +258,26 @@ sudo ln -sf /lib/systemd/system/systemd-networkd.service \
   "${tag_rootfs}/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
 sudo ln -sf /lib/systemd/system/ssh.service \
   "${tag_rootfs}/etc/systemd/system/multi-user.target.wants/ssh.service"
+sudo ln -sf /lib/systemd/system/avahi-daemon.service \
+  "${tag_rootfs}/etc/systemd/system/multi-user.target.wants/avahi-daemon.service"
+
+# enable and configure systemd-timesyncd for NTP time sync (China servers)
+sudo mkdir -p "${tag_rootfs}/etc/systemd"
+sudo bash -c "cat > '${tag_rootfs}/etc/systemd/timesyncd.conf' <<'EOF'
+[Time]
+NTP=ntp.aliyun.com ntp.tencent.com cn.pool.ntp.org
+FallbackNTP=ntp1.aliyun.com time.google.com
+EOF"
+sudo ln -sf /lib/systemd/system/systemd-timesyncd.service \
+  "${tag_rootfs}/etc/systemd/system/sysinit.target.wants/systemd-timesyncd.service"
 
 # test convenience: root/root and allow SSH password login
 sudo chroot "${tag_rootfs}" /bin/sh -c "echo 'root:root' | chpasswd" || true
+
+# set fish as default shell for root
+if [[ -f "${tag_rootfs}/usr/bin/fish" ]]; then
+  sudo chroot "${tag_rootfs}" /bin/sh -c "chsh -s /usr/bin/fish root" || true
+fi
 if [[ -f "${tag_rootfs}/etc/ssh/sshd_config" ]]; then
   sudo sed -i \
     -e 's|^#*PermitRootLogin.*|PermitRootLogin yes|' \

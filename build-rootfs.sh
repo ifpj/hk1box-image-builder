@@ -43,11 +43,10 @@ info_msg "Building default rootfs: ${BASENAME}"
 info_msg "Mirror: ${MIRROR}"
 info_msg "Components: ${COMPONENTS}"
 
-# Intentionally do not pass --variant and do not pass --include.
-# This uses mmdebstrap's default package set for the suite.
 sudo mmdebstrap \
   --architecture="$ARCH" \
   --components="$COMPONENTS" \
+  --include="fish,avahi-daemon" \
   "$SUITE" \
   "$TARFILE" \
   "$MIRROR"
