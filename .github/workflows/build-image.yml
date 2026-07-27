@@ -10,14 +10,14 @@ env:
   KERNEL_REPO: ophub/kernel
   KERNEL_TAGS: kernel_stable
   UBOOT_REPO: ophub/u-boot
-  BOARD: s905x3-hk1
-  FDTFILE: meson-sm1-hk1box-vontar-x3.dtb
   UBOOT_OVERLOAD: u-boot-x96maxplus.bin
   MAINLINE_UBOOT: hk1box-u-boot.bin.sd.bin
 
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
+    outputs:
+      kernel_version: ${{ steps.kernel.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -150,12 +150,12 @@ jobs:
           tag_name: ${{ steps.timestamp.outputs.ts }}
           generate_release_notes: true
           body: |
-            Bootable HK1 Box (Amlogic S905X3) images built from default mmdebstrap rootfs + ophub kernel.
+            Bootable HK1 Box (Amlogic S905X3) images built from default mmdebstrap rootfs + ophub kernel ${{ needs.build.outputs.kernel_version }}.
 
             | Distro | Suite | Kernel |
             |--------|-------|--------|
-            | Debian | trixie | Latest kernel_stable |
-            | Ubuntu | resolute | Latest kernel_stable |
+            | Debian | trixie | ${{ needs.build.outputs.kernel_version }} |
+            | Ubuntu | resolute | ${{ needs.build.outputs.kernel_version }} |
 
             ### Flashing
             Use `balenaEtcher` / `dd` / `Amlogic USB Burning Tool` to flash `.img.gz` to SD card or USB disk.

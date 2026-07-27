@@ -196,11 +196,8 @@ OC_DTB="$(find "$DTB_EXTRACT" -name "${FDTFILE%.dtb}-oc.dtb" | head -1)"
 # ==== 步骤11: 解压完整 modules ====
 info_msg "Extracting full kernel modules..."
 sudo mkdir -p "${tag_rootfs}/usr/lib/modules"
-sudo tar -mxzf "$KERNEL_MODULES" -C "${tag_rootfs}/usr/lib/modules" || {
-  echo "[ERROR] Failed to extract modules: $KERNEL_MODULES"
-  ls -lh "$KERNEL_MODULES"
-  exit 1
-}
+sudo tar -mxzf "$KERNEL_MODULES" -C "${tag_rootfs}/usr/lib/modules" || \
+  error_msg "Failed to extract modules: $KERNEL_MODULES"
 DST_MOD_DIR="${tag_rootfs}/usr/lib/modules/${KERNEL_NAME}"
 [[ -d "$DST_MOD_DIR" ]] || error_msg "modules dir not found after extract: $DST_MOD_DIR"
 info_msg "Full modules size: $(sudo du -sh "$DST_MOD_DIR" | awk '{print $1}')"
@@ -292,7 +289,7 @@ sudo umount "$TAG_BOOTFS"
 sudo umount "$tag_rootfs"
 sudo losetup -d "$LOOP_DEV"
 
-# ==== 步骤20: 压缩输出 ====
+# ==== 步骤16: 压缩输出 ====
 OUTPUT_FILE="${OUTPUT_PREFIX}_${KERNEL_NAME}.img"
 OUTPUT_GZ="${OUTPUT_FILE}.gz"
 info_msg "Compressing to ${OUTPUT_GZ}..."

@@ -12,8 +12,8 @@
 
 | 分区 | 格式 | 大小 | 说明 |
 |------|------|------|------|
-| boot | FAT32 | 256 MB | zImage + uInitrd + dtb + uEnv.txt |
-| rootfs | ext4 | tarball × 2 + 256MB 缓冲 | 最小系统 |
+| boot | FAT32 | 动态（内容×2 向上取整到 10MB） | zImage + uInitrd + dtb + uEnv.txt |
+| rootfs | ext4 | rootfs+modules+100MB 向上取整到 10MB | 最小系统 |
 
 ## Release 产物
 
@@ -68,9 +68,8 @@ sudo ./build-image.sh \
   --kernel-boot /tmp/boot-6.12.69-ophub.tar.gz \
   --kernel-dtb /tmp/dtb-amlogic-6.12.69-ophub.tar.gz \
   --kernel-modules /tmp/modules-6.12.69-ophub.tar.gz \
-  --kernel-header /tmp/header-6.12.69-ophub.tar.gz \
-  --uboot-mbr /tmp/u-boot-repo/amlogic/bootloader/hk1box-u-boot.bin.sd.bin \
-  --uboot-ext /tmp/u-boot-repo/amlogic/bootloader/u-boot-x96maxplus.bin \
+  --uboot-mbr /tmp/u-boot-repo/u-boot/amlogic/bootloader/hk1box-u-boot.bin.sd.bin \
+  --uboot-ext /tmp/u-boot-repo/u-boot/amlogic/overload/u-boot-x96maxplus.bin \
   --distro debian --suite trixie \
   --output debian-trixie_6.12.69-ophub
 ```
