@@ -2,8 +2,6 @@ name: Build HK1 Box bootable image
 
 on:
   push:
-    tags:
-      - 'v*'
   schedule:
     - cron: '0 0 15 * *'
   workflow_dispatch:
@@ -138,14 +136,18 @@ jobs:
       - name: List artifacts
         run: ls -lh *.img.gz *.sha256 2>/dev/null || true
 
+      - name: Set release timestamp
+        id: timestamp
+        run: echo "ts=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: |
             *.img.gz
             *.sha256
-          name: "HK1 Box Image ${{ github.ref_name || github.run_id }}"
-          tag_name: ${{ github.ref_name || format('build-{0}', github.run_id) }}
+          name: "HK1 Box Image ${{ steps.timestamp.outputs.ts }}"
+          tag_name: ${{ steps.timestamp.outputs.ts }}
           generate_release_notes: true
           body: |
             Bootable HK1 Box (Amlogic S905X3) images built from default mmdebstrap rootfs + ophub kernel.
