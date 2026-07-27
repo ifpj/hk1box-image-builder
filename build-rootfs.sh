@@ -46,7 +46,7 @@ info_msg "Components: ${COMPONENTS}"
 sudo mmdebstrap \
   --architecture="$ARCH" \
   --components="$COMPONENTS" \
-  --include="fish,avahi-daemon" \
+  --include="fish,avahi-daemon,openssh-server" \
   "$SUITE" \
   "$TARFILE" \
   "$MIRROR"
