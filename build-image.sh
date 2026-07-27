@@ -158,6 +158,10 @@ sudo mount "${LOOP_DEV}p2" "$tag_rootfs"
 # ==== 步骤8.5: 复制 rootfs 和 Amlogic boot scripts ====
 info_msg "Copying rootfs content into image..."
 sudo cp -a "$EXTRACT_ROOTFS/." "$tag_rootfs/"
+sudo sed -i \
+  -e 's|deb.debian.org|mirrors.cernet.edu.cn|g' \
+  -e 's|ports.ubuntu.com|mirrors.cernet.edu.cn|g' \
+  "${tag_rootfs}/etc/apt/sources.list"
 
 info_msg "Copying Amlogic boot scripts..."
 # bootfs is FAT32; do not preserve Unix ownership/mode.
